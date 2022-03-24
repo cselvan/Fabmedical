@@ -1,0 +1,22 @@
+#!/bin/bash
+#clean the existing file
+ipaddress=`/sbin/ifconfig eth0 | grep netmask | awk '{print $2}'`
+dnsname=`grep lambda.dquantum.ca /etc/hosts`
+if [ -z "$dnsname" ];
+then
+        record=`printf "%s %s" "$ipaddress" "lambda.dquantum.ca"`
+        echo $record >> /etc/hosts
+fi
+
+cat /dev/null > /tmp/httpd.status > /tmp/curl.out
+http_response=$(curl --write-out %{http_code} --connect-timeout 5  --silent --output /dev/null https://lambda.dquantum.ca)
+if [ $http_response -eq 200 ]
+then
+        /bin/curl --write-out %{json} --connect-timeout 5  --silent --output /dev/null https://lambda.dquantum.ca >> /tmp/curl.out
+        cat /tmp/curl.out > /tmp/httpd.status
+        /bin/systemctl status httpd | egrep "Active:| Main PID:|Status:" >> /tmp/httpd.status
+else
+        echo "Restarting the Web Service"
+        (kill $(ps -ef | grep '[h]ttpd' | awk '{print $2}'))
+        /bin/systemctl restart httpd
+fi
